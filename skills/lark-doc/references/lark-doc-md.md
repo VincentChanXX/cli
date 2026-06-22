@@ -4,7 +4,15 @@
 
 ## 创建文档标题
 
-使用 `docs +create --doc-format markdown` 创建文档时，文档标题必须写成内容开头唯一的一级标题：`# 标题`。正文标题从 `##` 开始，不要使用多个一级标题；否则标题可能无法被提取并显示为 `Untitled`。
+使用 `docs +create --doc-format markdown` 创建文档时，优先用 `--title` 指定文档标题：
+
+```bash
+lark-cli docs +create --api-version v2 --doc-format markdown --title "项目计划" --content @content.md
+```
+
+CLI 会把 `--title` 注入为内容开头的 `<title>...</title>`。正文 Markdown 不再需要为了文档标题强制使用唯一一级标题；可以按内容自然使用 `#` / `##` 等 heading。
+
+如果 `--content` 中也包含 `<title>`，SDK 会以第一个 `<title>` 为准，过滤后续标题，并通过 `warnings` / `degrade_details` 告知有标题被过滤。
 
 ## 转义规则
 

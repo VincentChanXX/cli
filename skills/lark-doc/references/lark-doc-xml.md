@@ -12,7 +12,7 @@ p, h1-h9, ul, ol, li, table, thead, tbody, tr, th, td, blockquote, pre, code, hr
 
 ## 创建文档标题
 
-使用 `docs +create` 创建 XML 文档时，文档标题必须写成 `<title>标题</title>`，且每篇文档只写一个 `<title>`。
+使用 `docs +create` 创建 XML 文档时，文档标题可以通过 `--title "标题"` 指定，也可以在内容开头写 `<title>标题</title>`。每篇文档只保留一个文档标题；如果出现多个 `<title>`，SDK 以第一个为准，过滤后续标题，并通过 `warnings` / `degrade_details` 提示。
 
 ## 容器标签
 |标签|说明|关键属性|
