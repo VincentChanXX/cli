@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 
 	"github.com/larksuite/cli/extension/fileio"
@@ -83,6 +84,9 @@ var AppsHTMLPublish = common.Shortcut{
 			// envelope field so dry-run still exits 0 (matches repo convention
 			// for dry-run "advisory preview" semantics).
 			dry.Set("validation_error", err.Error())
+		}
+		if hits := oversizeHTMLFiles(candidates); len(hits) > 0 {
+			dry.Set("oversize_html", hits)
 		}
 		dry.Set("file_count", len(candidates))
 		var totalSize int64
@@ -168,6 +172,37 @@ var maxHTMLPublishTarballBytes int64 = 20 * 1024 * 1024
 // Mutable for tests.
 var maxHTMLPublishRawBytes int64 = 200 * 1024 * 1024
 
+// maxHTMLPublishSingleHTMLFileBytes 单个 .html 文件上限，对齐妙搭服务端 10MB 约束。
+// 用 var 而非 const，便于单测调小覆盖拦截路径。
+var maxHTMLPublishSingleHTMLFileBytes int64 = 10 * 1024 * 1024
+
+// oversizeHTMLFiles 返回 candidates 中扩展名为 .html（大小写不敏感）且单个 Size 超过
+// maxHTMLPublishSingleHTMLFileBytes 的 RelPath 列表。只针对 .html 文件，不波及图片/字体/JS。
+func oversizeHTMLFiles(candidates []htmlPublishCandidate) []string {
+	var hits []string
+	for _, c := range candidates {
+		if strings.EqualFold(filepath.Ext(c.RelPath), ".html") && c.Size > maxHTMLPublishSingleHTMLFileBytes {
+			hits = append(hits, c.RelPath)
+		}
+	}
+	return hits
+}
+
+// oversizeHTMLFilesError 构造单文件超限的 Validate 风格拒绝，复用 maxSensitiveListInError 截断风格。
+func oversizeHTMLFilesError(hits []string) error {
+	var sample string
+	if len(hits) <= maxSensitiveListInError {
+		sample = strings.Join(hits, ", ")
+	} else {
+		sample = strings.Join(hits[:maxSensitiveListInError], ", ") +
+			fmt.Sprintf(" (and %d more)", len(hits)-maxSensitiveListInError)
+	}
+	return appsValidationParamError("--path",
+		"--path contains %d HTML file(s) exceeding the %d bytes (10MB) per-file limit: %s",
+		len(hits), maxHTMLPublishSingleHTMLFileBytes, sample).
+		WithHint("split or trim oversized HTML file(s); the 10MB cap applies to each single .html file")
+}
+
 // ensureIndexHTML 要求 walker 抓到的 candidates 里必须含 index.html。
 // 目录形态：根目录下必须有 index.html。
 // 单文件形态：文件名必须就是 index.html。
@@ -189,6 +224,9 @@ func runHTMLPublish(ctx context.Context, fio fileio.FileIO, publisher appsHTMLPu
 	}
 	if err := ensureIndexHTML(candidates); err != nil {
 		return nil, err
+	}
+	if hits := oversizeHTMLFiles(candidates); len(hits) > 0 {
+		return nil, oversizeHTMLFilesError(hits)
 	}
 	var rawTotal int64
 	for _, c := range candidates {
